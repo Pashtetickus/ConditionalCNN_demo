@@ -208,8 +208,12 @@ def full_app():
     # st.sidebar.subheader('Опции')
     st.markdown(
         """
-    Тут можно посмотреть, как Conditional CNN двигает рисунки (числа) по 
+    На этом сайте можно посмотреть, как Conditional CNN двигает рисунки (числа) по 
     выбранному условию.
+    * Для запуска опыта нарисуйте что-нибудь в поле ниже, докрутите кнопки **Выполнить** и нажмите ее.
+    Затем внизу вы увидите как появится картинка с результатом работы нейросети;
+    * Если вы хотите посмотреть историю ваших опытов, кликните на соответствующую галочку в настройках и нажмите **Выполнить**
+    : история появится внизу. 
 
     """
     )
@@ -295,7 +299,7 @@ def full_app():
                 key='direction_selection')
 
             direction_shift = st.slider('Величина сдвига в пикселях: ', 1, 30, 12)
-            show_history_checkbox = st.checkbox(label='Показывать историю действий')
+            show_history_checkbox = st.checkbox(label='Показывать историю опытов')
 
         # Create a canvas component
         with _col_1:
@@ -318,7 +322,7 @@ def full_app():
         with center_col_with_button:
             execute_digit_movement_button = st.form_submit_button(label='Выполнить:')
 
-        st.subheader('')
+        # st.subheader('')
         st.subheader('Ниже можете видеть результат работы нейросети: ')
 
         if st.session_state['Executed'] == 'initialized':
@@ -370,5 +374,10 @@ if __name__ == "__main__":
         st.markdown(f'<style>{form_style_file.read()}</style>', unsafe_allow_html=True)
 
     st.title("Conditional CNN Demo App")
+    st.write('Включите видео, чтобы посмотреть как играться с сайтом:')
+    video_file = open('Demo.webm', 'rb')
+    video_bytes = video_file.read()
+    st.video(video_bytes)
+
     st.sidebar.header("Configuration")
     main()
