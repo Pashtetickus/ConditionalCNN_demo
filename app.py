@@ -1,5 +1,6 @@
 import time
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_drawable_canvas import st_canvas
 
 import numpy as np
@@ -47,7 +48,6 @@ def convrelu(in_channels, out_channels, kernel, padding):
         nn.BatchNorm2d(out_channels),
         nn.ReLU(inplace=True),
     )
-
 
 class ResNetUNet(nn.Module):
     def __init__(self, n_class, DEBUG=False, _tensorboard=False):
@@ -154,6 +154,7 @@ model_test.load_state_dict(torch.load('resunet_mse.pth', map_location=torch.devi
 model_test = model_test.to('cpu')
 model_test = model_test.eval()
 
+
 test_aug = T.Compose([
     T.ToTensor(),
     T.Resize((64, 64)),
@@ -171,6 +172,7 @@ def main():
         'Граф модели (Tensorboard)': show_graph,
     }
     page = st.sidebar.selectbox('Page:', options=list(PAGES.keys()), key='PAGE_selection')
+
     PAGES[page]()
 
     with st.sidebar:
@@ -205,19 +207,17 @@ def show_graph():
 
 
 def full_app():
-    # st.sidebar.subheader('Опции')
     st.markdown(
         """
-    На этом сайте можно посмотреть, как Conditional CNN двигает рисунки (числа) по 
+    На этом сайте можно посмотреть, как нейросетка двигает рисунки (числа) по 
     выбранному условию.
-    * Для запуска опыта нарисуйте что-нибудь в поле ниже, докрутите кнопки **Выполнить** и нажмите ее.
-    Затем внизу вы увидите как появится картинка с результатом работы нейросети;
-    * Если вы хотите посмотреть историю ваших опытов, кликните на соответствующую галочку в настройках и нажмите **Выполнить**
-    : история появится внизу. 
-
+    
+    Для запуска опыта нарисуйте что-нибудь в поле ниже, после кликните на пустое место на странице и
+    затем можете управлять направлением движения рисунка через WASD или стрелки. Чем больше вы кликните, например на **S+D**,
+    тем выше и выше будет джвигаться рисунок. При некоторой сноровке (чуть зажать 2 клавиши или совсем одновременно)
+    можно двигаться по диагонали.
     """
     )
-    st.write('')
     st.write('')
 
     directions = ['вниз',
@@ -253,14 +253,17 @@ def full_app():
     def predict(image_from_canvas,
                 direction,
                 direction_shift):
-        np_img = np.array(image_from_canvas[:, :, :3], dtype=np.float32)  # canvas return rgba format
+        # np_img = np.array(image_from_canvas[:, :, :3], dtype=np.float32)  # canvas return rgba format
+        if image_from_canvas.shape[-1] > 3:
+            np_img = np.array(image_from_canvas[:, :, :3], dtype=np.float32)
+        else:
+            np_img = image_from_canvas
 
         with np.errstate(invalid='ignore', divide='ignore'):
             tensored_img = test_aug(np_img / np_img.max())
         tensored_img = tensored_img.unsqueeze(0).to(params['DEVICE'])
-
         direction = directions_map[direction]
-        # roll_map = create_roll_map(direction_shift)
+        roll_map = create_roll_map(direction_shift)
 
         direction_shift /= 30.  # norm btw 0 and 1
         direction_shift = torch.as_tensor([direction_shift]).float()
@@ -271,8 +274,8 @@ def full_app():
         with torch.no_grad():
             prediction = model_test((tensored_img, _dir))
 
-        # target = torch.roll(tensored_img.squeeze(0), roll_map[direction + 1], (0, 2, 1))
-        source_image = tensored_img.squeeze(0).detach().cpu().numpy()
+        source_image = torch.roll(tensored_img.squeeze(0), roll_map[direction + 1], (0, 2, 1))
+        source_image = source_image.detach().cpu().numpy()
         source_image = (source_image + 1) / 2
         source_image = np.transpose(source_image, (1, 2, 0))
 
@@ -284,100 +287,206 @@ def full_app():
     # !===== PyTorch part ENDS =====! #
 
 
-    with st.form('execute_digit_movement'):
-        _col_1, _, _col_2 = st.columns([2, 1, 2])
+    _col_1, _, _col_2 = st.columns([2, 1, 2])
 
-        # Specify canvas parameters in application
-        with _col_2:
-            st.subheader('Настройки:')
-            drawing_mode = 'freedraw'
-            stroke_width = st.slider('Толщина линии рисования: ', 1, 25, 8)
+    # Specify canvas parameters in application
+    with _col_2:
+        st.subheader('Настройки:')
+        drawing_mode = 'freedraw'
+        stroke_width = st.slider('Толщина линии рисования: ', 1, 25, 8)
+        direction_shift = st.slider('Величина сдвига в пикселях: ', 1, 30, 12)
 
-            direction = st.selectbox(
-                'Выберите из списка в каком направлении хотите двигать рисунок:',
-                directions,
-                key='direction_selection')
+    # Create a canvas component
+    with _col_1:
+        st.subheader("В этом поле вы можете рисовать:")
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 255, 0, 1)",  # Fixed fill color with some opacity
+            stroke_width=stroke_width,
+            stroke_color='#fff',
+            background_color='#000',
+            background_image=None,
+            update_streamlit=True,
+            height=256,
+            width=256,
+            drawing_mode=drawing_mode,
+            display_toolbar=True,
+            key="full_app",
+        )
+    #
+    up_dir = st.sidebar.button('W')
+    up_right_dir = st.sidebar.button('WD')
+    right_dir = st.sidebar.button('D')
+    down_right_dir = st.sidebar.button('SD')
+    down_dir = st.sidebar.button('S')
+    down_left_dir = st.sidebar.button('SA')
+    left_dir = st.sidebar.button('A')
+    up_left_dir = st.sidebar.button('WA')
 
-            direction_shift = st.slider('Величина сдвига в пикселях: ', 1, 30, 12)
-            show_history_checkbox = st.checkbox(label='Показывать историю опытов')
+    # up_dir = st.button('W')
+    # up_right_dir = st.button('WD')
+    # right_dir = st.button('D')
+    # down_right_dir = st.button('SD')
+    # down_dir = st.button('S')
+    # down_left_dir = st.button('SA')
+    # left_dir = st.button('A')
+    # up_left_dir = st.button('WA')
 
-        # Create a canvas component
-        with _col_1:
-            st.subheader("В этом поле вы можете рисовать:")
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 255, 0, 1)",  # Fixed fill color with some opacity
-                stroke_width=stroke_width,
-                stroke_color='#fff',
-                background_color='#000',
-                background_image=None,
-                update_streamlit=True,
-                height=256,
-                width=256,
-                drawing_mode=drawing_mode,
-                display_toolbar=True,
-                key="full_app",
-            )
+    st.subheader('Ниже можете видеть результат работы нейросети: ')
 
-        _, center_col_with_button, _ = st.columns([2, 1, 2])
-        with center_col_with_button:
-            execute_digit_movement_button = st.form_submit_button(label='Выполнить:')
+    if st.session_state['Executed'] == 'initialized':
+        placeholder = st.empty()
+        demo_input_img = Image.open('img/demo_input_img.jpeg')
+        demo_prediction_img = Image.open('img/demo_prediction_img.jpeg')
+        placeholder.pyplot(see_plot(demo_input_img, demo_prediction_img, size=(4, 4)))
+    else:
+        placeholder = st.empty()
+        with placeholder.container():
+            # history is [(elem_1, elem_2, (text)), (...), ...] and we take last pair
+            _input_img = st.session_state['History'][0]
+            _prediction = st.session_state['History'][1]
+            placeholder.pyplot(see_plot(_input_img, _prediction, size=(4, 4)))
 
-        # st.subheader('')
-        st.subheader('Ниже можете видеть результат работы нейросети: ')
+    direction_placeholder = st.empty()
+    directions_buttons_activations = np.array([
+        down_dir,
+        down_left_dir,
+        left_dir,
+        up_left_dir,
+        up_dir,
+        up_right_dir,
+        right_dir,
+        down_right_dir,
+    ])
 
-        if st.session_state['Executed'] == 'initialized':
-            placeholder = st.empty()
-            demo_input_img = Image.open('img/demo_input_img.jpeg')
-            demo_prediction_img = Image.open('img/demo_prediction_img.jpeg')
-            placeholder.pyplot(see_plot(demo_input_img, demo_prediction_img, size=(4, 4)))
-        else:
-            placeholder = st.empty()
-            with placeholder.container():
-                # history is [(elem_1, elem_2, (text)), (...), ...] and we take last pair
-                _input_img = st.session_state['History'][-1][0]
-                _prediction = st.session_state['History'][-1][1]
-                placeholder.pyplot(see_plot(_input_img, _prediction, size=(4, 4)))
-
-
-    if execute_digit_movement_button:
-        if st.session_state['Executed'] == 'initialized':
-            st.session_state['Executed'] = 'executed'
-
-        with st.spinner('Двигаю чиселку'):
+    # get index of True element (direction button activation)
+    direction_activation = np.nonzero(directions_buttons_activations)[0]
+    if direction_activation.size != 0:
+        direction = directions[direction_activation[0]]
+        # print(direction)
+        direction_placeholder.info(f'полученное направление: {direction}')
+        with st.spinner('Двигаю рисунок'):
             image_from_canvas = canvas_result.image_data
-            input_img, prediction = predict(image_from_canvas, direction, direction_shift)
-            time.sleep(1.5)
 
-            st.session_state['History'].append((input_img, prediction, (direction, direction_shift)))
-            placeholder.pyplot(see_plot(input_img, prediction, size=(4, 4)))
-        st.success('Done!')
+            if st.session_state['Executed'] == 'initialized':
+                input_img, prediction = predict(image_from_canvas, direction, direction_shift)
+                # time.sleep(0.05)
+                placeholder.pyplot(see_plot(input_img, prediction, size=(4, 4)))
+                st.session_state['History'] = (input_img, prediction, image_from_canvas)
+                st.session_state['Executed'] = 'executed'
 
-    # Show user's actions history
-    if show_history_checkbox:
-        _, center_col, _ = st.columns(3)
-        center_col.success('Ваша история действий:')
-
-        _, center_col, _ = st.columns([1, 3, 1])
-        with center_col:
-            for __input_img, __prediction, __text in st.session_state['History']:
-                __text = f'Направление: {__text[0]} со сдвигом {__text[1]}px'
-                st.pyplot(see_plot(__input_img, __prediction, text=__text, size=(4, 4)))
+            # if we didn't update canvas
+            elif np.array_equal(st.session_state['History'][-1], image_from_canvas):
+                input_img, prediction = predict(st.session_state['History'][0], direction, direction_shift)
+                placeholder.pyplot(see_plot(input_img, prediction, size=(4, 4)))
+                st.session_state['History'] = (input_img, prediction, image_from_canvas)
+            else:
+                input_img, prediction = predict(image_from_canvas, direction, direction_shift)
+                placeholder.pyplot(see_plot(input_img, prediction, size=(4, 4)))
+                st.session_state['History'] = (input_img, prediction, image_from_canvas)
 
 
 if __name__ == "__main__":
     page_icon = Image.open('img/pytorch_logo_icon_170820.png').resize((24, 24), Image.ANTIALIAS)
     page_icon = page_icon.convert("RGBA")
     st.set_page_config(
-        page_title="CCNN Demo App", page_icon=page_icon
+        page_title="CCNN Demo App", page_icon=page_icon, initial_sidebar_state='collapsed'
     )
-    with open('form.css') as form_style_file:
+    with open('st_form_wo_border.css') as form_style_file:
         st.markdown(f'<style>{form_style_file.read()}</style>', unsafe_allow_html=True)
 
-    st.title("Conditional CNN Demo App")
-    st.write('Включите видео, чтобы посмотреть как играться с сайтом:')
-    video_file = open('Demo.webm', 'rb')
-    video_bytes = video_file.read()
-    st.video(video_bytes)
+    st.title("Conditional CNN wasd control (POC)")
 
     st.sidebar.header("Configuration")
     main()
+
+    components.html(
+        """
+    <script>
+    const doc = window.parent.document;
+    buttons = Array.from(doc.querySelectorAll('button[kind=primary]'));
+
+    var up_dir = false,
+        up_right_dir = false,
+        right_dir = false,
+        down_right_dir = false,
+        down_dir = false,
+        down_left_dir = false,
+        left_dir = false,
+        up_left_dir = false
+
+    const W = buttons.find(el => el.innerText === 'W');
+    const A = buttons.find(el => el.innerText === 'A');
+    const S = buttons.find(el => el.innerText === 'S');
+    const D = buttons.find(el => el.innerText === 'D');
+    const WA = buttons.find(el => el.innerText === 'WA');
+    const WD = buttons.find(el => el.innerText === 'WD');
+    const SD = buttons.find(el => el.innerText === 'SD');
+    const SA = buttons.find(el => el.innerText === 'SA');
+
+    doc.addEventListener('keydown', press)
+    function press(e) {
+      if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */){
+        up_dir = true
+      }
+      if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
+        right_dir = true
+      }
+      if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
+        down_dir = true
+      }
+      if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */){
+        left_dir = true
+      }
+    }
+
+    doc.addEventListener('keyup', release)
+    function release(e){
+      if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */){
+        up_dir = false
+      }
+      if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
+        right_dir = false
+      }
+      if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
+        down_dir = false
+      }
+      if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */){
+        left_dir = false
+      }
+    }
+
+    function gameLoop(){
+        if (up_dir){
+          W.click();
+        }
+        if (right_dir){
+          D.click();
+        }
+        if (down_dir){
+          S.click();
+        }
+        if (left_dir){
+          A.click();
+        }
+        if (up_dir && right_dir){
+          WD.click();
+        }
+        if (right_dir && down_dir){
+          SD.click();
+        }
+        if (down_dir && left_dir){
+          SA.click();
+        }
+        if (up_dir && left_dir){
+          WA.click();
+        }
+        window.requestAnimationFrame(gameLoop)
+    }
+    //setTimeout(gameLoop, 1000);
+    window.requestAnimationFrame(gameLoop)
+
+    </script>
+    """,
+        height=0,
+        width=0,
+    )
