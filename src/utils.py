@@ -1,6 +1,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -59,6 +60,7 @@ def predict(model,
     direction_shift = torch.as_tensor([direction_shift]).float()
     direction_shift = direction_shift.to(params['DEVICE'])
     _dir = F.one_hot(torch.tensor(direction), num_classes=8).float()  # torch.Size([8])
+    _dir = _dir.to(params['DEVICE'])
     _dir = torch.cat((_dir, direction_shift))
     _dir = _dir.unsqueeze(0).to(params['DEVICE'])
     # sp, zoom = load_consts()
@@ -73,10 +75,12 @@ def predict(model,
     prediction = prediction.squeeze(0).detach().cpu().numpy()
     prediction = (prediction + 1) / 2
     prediction = np.transpose(prediction, (1, 2, 0))
+    prediction = cv2.cvtColor(prediction, cv2.COLOR_BGR2GRAY)
     return source_image, prediction
 
 
 def see_plot(target, prediction, text=None, color='gray', size=(4, 4)):
+    plt.close('all')
     plt.figure(figsize=size)
     fig, ax = plt.subplots(1, 2, figsize=size)
     fig.patch.set_facecolor('0.8')

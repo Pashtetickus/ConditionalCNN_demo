@@ -1,5 +1,5 @@
-# ConditionalCNN demo
-[Here](https://share.streamlit.io/pashtetickus/conditionalcnn_demo/main/app.py) you can see how ConditionalCNN moves pictures by the given condition.
+# Conditional image2image model demo
+[Here](https://share.streamlit.io/pashtetickus/conditionalcnn_demo/main/app.py) you can see how conditional image2image model moves pictures by the given condition.
 
 This type of neural network models can be adapted and used to simulate various physical processes.
 

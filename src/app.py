@@ -1,4 +1,5 @@
 import time
+import gc
 
 import streamlit as st
 from PIL import Image
@@ -73,10 +74,11 @@ def full_app():
         """
         На этом сайте можно посмотреть, как Conditional CNN двигает рисунки (числа) по 
         выбранному условию.
-        * Для запуска опыта нарисуйте что-нибудь в поле ниже, докрутите кнопки **Выполнить** и нажмите ее.
-        Затем внизу вы увидите как появится картинка с результатом работы нейросети;
-        * Если вы хотите посмотреть историю ваших опытов, кликните на соответствующую галочку в настройках и нажмите **Выполнить**
-        : история появится внизу. 
+        
+        Для запуска опыта нарисуйте что-нибудь в поле ниже, докрутите кнопки **Выполнить** и нажмите ее. Затем внизу вы увидите как появится картинка с результатом работы нейросети;
+        
+        Если вы хотите посмотреть историю ваших опытов, кликните на соответствующую галочку в настройках и нажмите **Выполнить** \
+        - история появится внизу. 
     
         """
     )
@@ -94,7 +96,7 @@ def full_app():
                   ]
     directions_map = {dir_name: i for i, dir_name in enumerate(directions)}
 
-    model_resunet = load_model(ResNetUNet(3), 'resunet_mse')
+    model_resunet = load_model(ResNetUNet(3), 'resunet_pl_loss')
 
     if 'History' not in st.session_state:
         st.session_state['History'] = []
@@ -108,7 +110,7 @@ def full_app():
         with _col_2:
             st.subheader('Настройки:')
             drawing_mode = 'freedraw'
-            stroke_width = st.slider('Толщина линии рисования: ', 1, 25, 8)
+            stroke_width = st.slider('Толщина линии рисования: ', 1, 25, 12)
 
             direction = st.selectbox(
                 'Выберите из списка в каком направлении хотите двигать рисунок:',
@@ -116,11 +118,11 @@ def full_app():
                 key='direction_selection')
 
             direction_shift = st.slider('Величина сдвига в пикселях: ', 1, 30, 12)
-            show_history_checkbox = st.checkbox(label='Показывать историю опытов')
+            show_history_checkbox = st.checkbox(label='Показывать историю опытов', value=True)
 
         # Create a canvas component
         with _col_1:
-            st.subheader('В этом поле вы можете рисовать:')
+            st.subheader('Нарисуйте любую цифру или фигуру:')
             canvas_result = st_canvas(
                 fill_color='rgba(255, 255, 0, 1)',  # Fixed fill color with some opacity
                 stroke_width=stroke_width,
@@ -135,12 +137,12 @@ def full_app():
                 key="full_app",
             )
 
-        _, center_col_with_button, _ = st.columns([2, 1, 2])
+        _, center_col_with_button, _ = st.columns([0.75, 1, 0.75])
         with center_col_with_button:
-            execute_digit_movement_button = st.form_submit_button(label='Выполнить:')
+            execute_digit_movement_button = st.form_submit_button(label='Запустить работу нейросети')
 
-        # st.subheader('')
-        st.subheader('Ниже можете видеть результат работы нейросети: ')
+        st.subheader('')
+        st.subheader('Результат работы нейросети:')
 
         if st.session_state['Executed'] == 'initialized':
             placeholder = st.empty()
@@ -159,10 +161,11 @@ def full_app():
         if st.session_state['Executed'] == 'initialized':
             st.session_state['Executed'] = 'executed'
 
-        with st.spinner('Двигаю чиселку'):
+        with st.spinner('Двигаю рисунок'):
             image_from_canvas = canvas_result.image_data
             direction = directions_map[direction]
             input_img, prediction = predict(model_resunet, image_from_canvas, direction, direction_shift)
+            direction = directions[direction]   # get text repr of direction
             st.session_state['History'].append((input_img, prediction, (direction, direction_shift)))
             placeholder.pyplot(see_plot(input_img, prediction, size=(4, 4)))
             time.sleep(1.1)
@@ -170,6 +173,10 @@ def full_app():
 
     # Show user's actions history
     if show_history_checkbox:
+        if len(st.session_state['History']) > 10:
+            del st.session_state['History'][0]
+            gc.collect()
+
         _, center_col, _ = st.columns(3)
         center_col.success('Ваша история действий:')
 

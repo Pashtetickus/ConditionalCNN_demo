@@ -12,13 +12,9 @@ def convrelu(in_channels, out_channels, kernel, padding):
 
 
 class ResNetUNet(nn.Module):
-    def __init__(self, n_class, DEBUG=False, _tensorboard=False):
+    def __init__(self, n_class):
         super().__init__()
-        self.DEBUG = DEBUG
-        self._tensorboard = _tensorboard
-
         self.base_model = models.resnet18(pretrained=True)
-
         self.base_layers = list(self.base_model.children())
 
         self.layer0 = nn.Sequential(*self.base_layers[:3])  # size=(N, 64, x.H/2, x.W/2)
@@ -47,36 +43,18 @@ class ResNetUNet(nn.Module):
         self.act_last = nn.Tanh()
         self.support_conv1 = nn.Conv2d(9, 512, 1)  # (bath, 9) --> (batch, 512)
 
-    # for tensorboard: (idk how to write it better)
-    # def forward(self, inp_0, inp_1):
     def forward(self, inp):
-        if self.DEBUG:
-            # summary can't work with multiple inputs so we create them for him
-            if not self._tensorboard:
-                inp_0 = torch.rand(batch_size, 3, 64, 64)
-                inp_1 = torch.rand(batch_size, 9)
-            x_original = self.conv_original_size0(inp_0)
-        else:
-            x_original = self.conv_original_size0(inp[0])
-
+        x_original = self.conv_original_size0(inp[0])
         x_original = self.conv_original_size1(x_original)
 
-        if self.DEBUG:
-            layer0 = self.layer0(inp_0)
-        else:
-            layer0 = self.layer0(inp[0])
-
+        layer0 = self.layer0(inp[0])
         layer1 = self.layer1(layer0)
         layer2 = self.layer2(layer1)
         layer3 = self.layer3(layer2)
         layer4 = self.layer4(layer3)
 
-        if self.DEBUG:
-            cond = self.support_conv1(
-                torch.unsqueeze(torch.unsqueeze(inp_1, 2), 2))  # ([batch, 9]) --> Size([9, 512, 1, 1])
-        else:
-            cond = self.support_conv1(
-                torch.unsqueeze(torch.unsqueeze(inp[1], 2), 2))  # ([batch, 9]) --> Size([9, 512, 1, 1])
+        cond = self.support_conv1(
+            torch.unsqueeze(torch.unsqueeze(inp[1], 2), 2))  # ([batch, 9]) --> Size([9, 512, 1, 1])
 
         layer4 = self.layer4_1x1(layer4 + cond)
 
@@ -109,4 +87,3 @@ class ResNetUNet(nn.Module):
         out = self.act_last(out)
 
         return out
-
