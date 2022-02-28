@@ -2,7 +2,7 @@
 pathlib==1.0.1
 streamlit>=1.5
 streamlit-drawable-canvas>=0.8
-torch==0.10.2+cpu
+torch==1.10.2+cpu
 torchvision==0.11.3+cpu
 matplotlib==3.5.1
 matplotlib-inline==0.1.3
