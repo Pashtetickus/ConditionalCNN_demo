@@ -1,5 +1,5 @@
-import time
 import gc
+import time
 
 import streamlit as st
 from PIL import Image
@@ -8,7 +8,6 @@ from streamlit_drawable_canvas import st_canvas
 from config import DATA_DIR
 from src.models import ResNetUNet
 from src.utils import load_model, predict, see_plot
-
 
 imgs_dir = f'{DATA_DIR}/imgs'
 
@@ -22,7 +21,7 @@ def main():
     with open('src/form_wo_border.css') as form_style_file:
         st.markdown(f'<style>{form_style_file.read()}</style>', unsafe_allow_html=True)
 
-    st.title('Conditional CNN Demo App')
+    st.title('Conditional image2image demo app')
     st.sidebar.header('Configuration')
 
     if 'button_id' not in st.session_state:
@@ -72,7 +71,7 @@ def full_app():
     # st.sidebar.subheader('Опции')
     st.markdown(
         """
-        На этом сайте можно посмотреть, как Conditional CNN двигает рисунки (числа) по 
+        На этом сайте можно посмотреть, как conditional image2image модель двигает рисунки (числа) по 
         выбранному условию.
         
         Для запуска опыта нарисуйте что-нибудь в поле ниже, докрутите кнопки **Выполнить** и нажмите ее. Затем внизу вы увидите как появится картинка с результатом работы нейросети;
@@ -139,6 +138,7 @@ def full_app():
 
         _, center_col_with_button, _ = st.columns([0.75, 1, 0.75])
         with center_col_with_button:
+            st.write('')
             execute_digit_movement_button = st.form_submit_button(label='Запустить работу нейросети')
 
         st.subheader('')
